@@ -2,6 +2,10 @@
 
 A service that accepts any incoming JSON webhook, hands it to **Anthropic Claude** for classification, and durably persists the result to PostgreSQL — all without blocking the caller. The API acknowledges every request in milliseconds; the heavy lifting happens asynchronously in a Redis-backed worker.
 
+## Demo
+
+▶️ [Watch the demo on Loom](https://www.loom.com/share/5565858fc50c48da9567f13ecb94d3de)
+
 ## What it does
 
 When a webhook arrives at `POST /webhook`, the API immediately creates a job record and pushes the payload onto a Redis queue, returning `202 Accepted`. A background RQ worker picks it up, asks Claude to decide whether the payload is a **Shipment update**, an **Invoice**, or something **Unclassified**, then upserts the result into the appropriate table. If the worker encounters an error it retries up to five times before marking the job as permanently failed. Every job — pending, processing, completed, or failed — is visible through the `/jobs` API.
