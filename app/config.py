@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # Queue
     WEBHOOK_QUEUE_NAME: str = "webhook_tasks"
 
+    # Anthropic / LangChain
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-3-5-haiku-20241022"
+
     @property
     def database_url(self) -> str:
         return (

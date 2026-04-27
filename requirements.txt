@@ -10,7 +10,7 @@ pydantic-settings>=2.2.0
 sqlalchemy>=2.0.30
 asyncpg>=0.29.0
 
-# Database – sync driver for Alembic
+# Database – sync driver (for Alembic + RQ worker)
 psycopg2-binary>=2.9.9
 
 # Migrations
@@ -19,6 +19,14 @@ alembic>=1.13.0
 # Redis + RQ job queue
 redis>=5.0.4
 rq>=1.16.2
+
+# LangChain + Anthropic LLM
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-anthropic>=0.1.15
+
+# Date parsing (ISO 8601 timestamps in worker)
+python-dateutil>=2.9.0
 
 # Utilities
 python-dotenv>=1.0.1

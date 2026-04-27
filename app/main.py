@@ -6,6 +6,10 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.api.routes import webhook as webhook_router
+from app.api.routes import jobs as jobs_router
+from app.api.routes import shipments as shipments_router
+from app.api.routes import invoices as invoices_router
+from app.api.routes import unclassified as unclassified_router
 from app.db.database import dispose_engine
 from app.services.redis_client import ping_redis
 
@@ -65,6 +69,10 @@ async def on_shutdown() -> None:
 # ---------------------------------------------------------------------------
 
 app.include_router(webhook_router.router)
+app.include_router(jobs_router.router)
+app.include_router(shipments_router.router)
+app.include_router(invoices_router.router)
+app.include_router(unclassified_router.router)
 
 # ---------------------------------------------------------------------------
 # Health / root endpoints

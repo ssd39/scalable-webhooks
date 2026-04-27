@@ -16,21 +16,20 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # ---------------------------------------------------------------------------
-# Import your app settings so we can inject the real DB URL at runtime,
-# and import Base so autogenerate can detect model changes.
+# Import settings (real DB URL at runtime) and Base for autogenerate.
 # ---------------------------------------------------------------------------
 from app.config import settings  # noqa: E402
 from app.db.database import Base  # noqa: E402
 
-# Import all ORM models here so Alembic's autogenerate can see them:
-# from app.db.models import SomeModel  # noqa: F401
+# Import ALL ORM models so Alembic autogenerate can detect every table.
+import app.db.models  # noqa: F401 – registers Job, Shipment, Invoice, UnclassifiedEvent
 
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 target_metadata = Base.metadata
 
 # ---------------------------------------------------------------------------
-# Offline migration (generates SQL script without a live DB connection)
+# Offline migration
 # ---------------------------------------------------------------------------
 
 
@@ -47,7 +46,7 @@ def run_migrations_offline() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Online migration (runs against a live DB connection)
+# Online migration (async)
 # ---------------------------------------------------------------------------
 
 
