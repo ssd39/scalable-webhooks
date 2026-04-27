@@ -1,0 +1,115 @@
+##############################################################################
+# docker-compose.yml
+#
+# Full-stack services: infra (PostgreSQL + Redis) + migrate + API + worker.
+#
+# Usage:
+#   docker compose up --build          # start everything
+#   docker compose up --build api      # start only API (+ deps)
+#   docker compose down -v             # stop and remove volumes
+##############################################################################
+
+services:
+  # --------------------------------------------------------------------------
+  # Infrastructure (mirrors docker-compose.infra.yml)
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: glacias_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-glacias}
+      POSTGRES_USER: ${POSTGRES_USER:-glacias}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-glacias}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-glacias} -d ${POSTGRES_DB:-glacias}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: glacias_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # --------------------------------------------------------------------------
+  # Database migrations (runs Alembic, exits when done)
+  # --------------------------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: glacias_migrate
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: alembic upgrade head
+    restart: "no"
+
+  # --------------------------------------------------------------------------
+  # FastAPI application server
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: glacias_api
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app  # live-reload in development; remove for production
+
+  # --------------------------------------------------------------------------
+  # RQ background worker (listens on the Redis webhook queue)
+  # --------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: glacias_worker
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command: python -m app.worker.listener
+    volumes:
+      - .:/app  # live-reload in development; remove for production
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,51 @@
+##############################################################################
+# docker-compose.infra.yml
+#
+# Infrastructure-only services: PostgreSQL + Redis.
+# Used by:
+#   • run_local.sh  – spins up infra so the local venv server can connect
+#   • docker-compose.yml (includes / extends this file for the full stack)
+#
+# Usage:
+#   docker compose -f docker-compose.infra.yml up -d
+##############################################################################
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: glacias_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-glacias}
+      POSTGRES_USER: ${POSTGRES_USER:-glacias}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-glacias}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-glacias} -d ${POSTGRES_DB:-glacias}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: glacias_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  postgres_data:
+  redis_data:
