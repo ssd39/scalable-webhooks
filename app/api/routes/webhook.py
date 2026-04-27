@@ -2,7 +2,7 @@ import uuid
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from rq import Retry
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,36 @@ from app.worker.tasks import MAX_ATTEMPTS, process_webhook_task
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["Webhook"])
+
+_BODY_EXAMPLE = {
+    "shipment_example": {
+        "summary": "Shipment update",
+        "value": {
+            "vendorId": "ACME-001",
+            "trackingNumber": "TRK-987654",
+            "status": "TRANSIT",
+            "timestamp": "2025-04-28T10:30:00Z",
+        },
+    },
+    "invoice_example": {
+        "summary": "Invoice",
+        "value": {
+            "vendorId": "GlobalShip-42",
+            "invoiceId": "INV-00123",
+            "amount": 1299.99,
+            "currency": "USD",
+        },
+    },
+    "unclassified_example": {
+        "summary": "Unclassified event",
+        "value": {
+            "event_type": "user_signup",
+            "user_id": "usr_abc123",
+            "email": "user@example.com",
+            "plan": "pro",
+        },
+    },
+}
 
 
 @router.post(
@@ -29,7 +59,11 @@ router = APIRouter(prefix="/webhook", tags=["Webhook"])
     ),
 )
 async def receive_webhook(
-    request: Request,
+    body: Dict[str, Any] = Body(
+        ...,
+        openapi_examples=_BODY_EXAMPLE,
+        description="Any valid JSON object — no fixed schema required.",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> WebhookResponse:
     """
@@ -41,14 +75,6 @@ async def receive_webhook(
     worker and saved to the appropriate table (shipments / invoices /
     unclassified_events) asynchronously.
     """
-    try:
-        body: Dict[str, Any] = await request.json()
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Request body must be valid JSON.",
-        )
-
     task_id = str(uuid.uuid4())
 
     # ── 1. Persist Job record BEFORE enqueue ─────────────────────────────
@@ -60,7 +86,6 @@ async def receive_webhook(
     )
     db.add(job)
     await db.flush()  # populate job.id without full commit
-    job_db_id = job.id
 
     # ── 2. Enqueue task with payload (task_id injected) ───────────────────
     payload: Dict[str, Any] = {"task_id": task_id, **body}

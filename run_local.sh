@@ -4,16 +4,26 @@
 #
 # Local development entry-point.
 #
-# What it does:
+# Normal mode (no flags):
 #   1. Ensures Docker infrastructure (PostgreSQL + Redis) is running.
 #   2. Creates / activates a Python virtual environment.
 #   3. Installs / upgrades Python dependencies.
 #   4. Copies .env.example → .env if .env does not exist yet.
-#   5. Waits until PostgreSQL and Redis are actually reachable.
+#   5. Waits until PostgreSQL and Redis are reachable.
 #   6. Runs Alembic migrations (alembic upgrade head).
 #   7. Starts the RQ worker in the background.
 #   8. Starts the Uvicorn dev server (foreground, auto-reload).
 #   9. On exit (Ctrl-C / error) stops the background worker.
+#
+# Test mode (--test [...]):
+#   Runs test_gen.py after setting up the venv and loading .env.
+#   Any extra flags are forwarded directly to test_gen.py.
+#
+#   Examples:
+#     ./run_local.sh --test
+#     ./run_local.sh --test --shipment
+#     ./run_local.sh --test --invoice --count 3
+#     ./run_local.sh --test --unclassified
 ##############################################################################
 
 set -euo pipefail
@@ -30,6 +40,18 @@ RESET="\033[0m"
 info()    { echo -e "${GREEN}[run_local]${RESET} $*"; }
 warning() { echo -e "${YELLOW}[run_local]${RESET} $*"; }
 error()   { echo -e "${RED}[run_local]${RESET} $*" >&2; }
+
+# ── Parse --test flag + collect pass-through args ────────────────────────────
+TEST_MODE=false
+TEST_ARGS=()
+
+for arg in "$@"; do
+  if [ "$arg" = "--test" ]; then
+    TEST_MODE=true
+  else
+    TEST_ARGS+=("$arg")
+  fi
+done
 
 # ── 1. Start infrastructure ───────────────────────────────────────────────────
 info "Starting infrastructure (PostgreSQL + Redis) …"
@@ -56,7 +78,7 @@ if [ ! -f ".env" ]; then
   cp .env.example .env
 fi
 
-# Load env vars so we can use them for health checks below
+# Load env vars
 set -o allexport
 # shellcheck disable=SC1091
 source .env
@@ -68,6 +90,13 @@ POSTGRES_USER="${POSTGRES_USER:-glacias}"
 POSTGRES_DB="${POSTGRES_DB:-glacias}"
 REDIS_HOST="${REDIS_HOST:-localhost}"
 REDIS_PORT="${REDIS_PORT:-6379}"
+
+# ── TEST MODE: run test_gen.py and exit ───────────────────────────────────────
+if [ "$TEST_MODE" = true ]; then
+  info "Test mode – running test_gen.py ${TEST_ARGS[*]+"${TEST_ARGS[*]}"}"
+  python test_gen.py "${TEST_ARGS[@]+"${TEST_ARGS[@]}"}"
+  exit $?
+fi
 
 # ── 5. Wait for PostgreSQL ────────────────────────────────────────────────────
 info "Waiting for PostgreSQL at ${POSTGRES_HOST}:${POSTGRES_PORT} …"

@@ -7,8 +7,9 @@ pydantic>=2.7.0
 pydantic-settings>=2.2.0
 
 # Database – async SQLAlchemy + asyncpg driver
-sqlalchemy>=2.0.30
+sqlalchemy[asyncio]>=2.0.30
 asyncpg>=0.29.0
+greenlet>=3.0.0
 
 # Database – sync driver (for Alembic + RQ worker)
 psycopg2-binary>=2.9.9
